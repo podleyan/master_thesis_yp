@@ -1,5 +1,5 @@
-# master_thesis_yp
-Prediction of energy demand in the power system with deep learning multi-horizon forecasting methods
+
+# Prediction of energy demand in the power system with deep learning multi-horizon forecasting methods
 
 Abstract: This thesis addresses deep learning methods with a focus on Temporal Fusion Transformer
 (TFT) for multi-horizon load prediction in the power transmission system. The TFT model architecture
