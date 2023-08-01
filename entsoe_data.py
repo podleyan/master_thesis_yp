@@ -1,0 +1,30 @@
+from entsoe import EntsoePandasClient
+import pandas as pd
+
+
+def getEntsoeData(location, fromDate, toDate, type):
+    start = pd.Timestamp(str(fromDate), tz ='UTC')
+    end = pd.Timestamp(str(toDate), tz ='UTC')
+  
+    client = EntsoePandasClient(api_key='8204ab15-ed36-42be-98ac-089812f6f107')
+    data = pd.date_range(start=start, end=end, freq='H', tz='UTC')
+    entsoe_all = pd.DataFrame(index=data)
+    country_code = str(location)
+    if str(type) == 'history':
+        load = client.query_load(country_code, start=start, end=end)
+    elif str(type) == 'forecast':
+        load = client.query_load_forecast(country_code, start=start, end=end)
+    else:
+        print('Wrong type selected, please select type \in (history, forecast)')
+        
+    load = pd.merge(load, entsoe_all, how='outer', left_index=True, right_index=True)
+        
+    load = load.resample('H').sum()
+    load['country'] = location
+
+    return load
+
+# EXAMPLE:
+# data = getEntsoeData('CZ', 20171201, 20181201, 'history')
+# print(data)
+
