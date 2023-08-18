@@ -5,6 +5,9 @@ from weather import getWeatherData
 from entsoe_data import getEntsoeData
 from data import getData, createLags, split_in_time, printMetrics, getDataBeforeMerge, createLagsY, createFeatures
 
+import xgboost as xgb
+from xgboost import plot_importance, plot_tree
+
 import numpy as np # linear algebra
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -78,13 +81,13 @@ y_test = np.nan_to_num(y_test)
 if hyperparameters_search: 
     tscv = TimeSeriesSplit(n_splits = 3)
 
-    model = RandomForestRegressor()
+    model = xgb.XGBRegressor()
     parameters = {
-        'n_estimators': [100, 200, 300, 400, 500],
-        'max_features': ['auto', 'sqrt', 'log2', None],
-        'max_depth' : [10, 20, 30, 40, 50, None],
-        'min_samples_split': [2, 5, 10],
-        'min_samples_leaf': [1, 2, 4],
+        'max_depth': [15, 25, 50],
+        'n_estimators': [1000, 1500, 2000],
+        'learning_rate': [0.1, 0.2, 0.3],
+        'reg_alpha': [0, 0.2, 0.5],
+        'reg_lambda': [1, 1.2, 1.5],
     }
 
 
@@ -100,8 +103,12 @@ if hyperparameters_search:
 
     gsearch.fit(X_train, y_train)
 else:
-    rf = RandomForestRegressor(random_state=42,n_jobs=4,criterion ="squared_error",max_depth=20,max_features='auto',n_estimators=500,warm_start=True)
-    rf.fit(X_train, y_train)
+
+    reg = xgb.XGBRegressor(n_estimators=1000, max_depth=25, learning_rate=0.1, reg_alpha=0.2, reg_lambda=1.2, objective = 'reg:squarederror')
+    reg.fit(X_train, y_train,
+        eval_set=[(X_train, y_train), (X_test, y_test)],
+        early_stopping_rounds=50,
+       verbose=False)
 
 #######################################################################################################################
 # Predicting 36 hours ahead 
@@ -109,7 +116,7 @@ else:
 
 start_time = split_date
 end_time = X.index.max()
-df_RF =pd.DataFrame(columns={"time", "prediction", "forecasted_time"})
+df_xgb =pd.DataFrame(columns={"time", "forecasted_load", "forecasted_time"})
 
 count = 0
 
@@ -144,22 +151,22 @@ for row in range(len(X[(X.index >= start_time) & (X.index < end_time)])):
         rowToPredictEncode = encoder.transform(rowToPredict)
         
         # make prediction
-        prediction = rf.predict(rowToPredictEncode)
+        prediction = reg.predict(rowToPredictEncode)
         
         # update X df and store prediction
         X.loc[X[X.index >= start_time].index[row + i],'Actual Load'] = prediction
         
-        df_RF.loc[count - 1, 'time'] = fromPredictionTime
-        df_RF.loc[count - 1, 'prediction'] = prediction[0]
-        df_RF.loc[count - 1, 'forecasted_time'] = timeOfPrediction
+        df_xgb.loc[count - 1, 'time'] = fromPredictionTime
+        df_xgb.loc[count - 1, 'prediction'] = prediction[0]
+        df_xgb.loc[count - 1, 'forecasted_time'] = timeOfPrediction
         #print('Prediction from ', fromPredictionTime, ' load predicted ', prediction[0][0], ' time of load', timeOfPrediction)
 
 print('done') 
 
-df_RF.to_csv('RF.csv')
-rf_results = pd.merge(df_RF, X["Actual Load"], how='left', left_on='forecasted_time', right_on = 'timestamp')
+df_xgb.to_csv('XGB.csv')
+xgb_results = pd.merge(df_xgb, X["Actual Load"], how='left', left_on='forecasted_time', right_on = 'timestamp')
+
 #######################################################################################################################
 # Results 
-
-printMetrics(rf_results)  
+printMetrics(xgb_results)   
 
