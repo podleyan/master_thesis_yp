@@ -3,23 +3,14 @@ import numpy as np
 from calendar_data import getCalendarData
 from weather import getWeatherData
 from entsoe_data import getEntsoeData
-from forecast_data import getWeatherForecast
+from weather_forecast import getWeatherForecastData
 
 from sklearn.metrics import mean_absolute_percentage_error, mean_squared_error, r2_score, mean_absolute_error
 
-def getDataBeforeMerge(location, fromDate, toDate):
+def getDataBeforeMerge(country, fromDate, toDate):
     type = 'history'
-    for country in location: 
-            entsoe_df = pd.DataFrame()
-            forecast_df = pd.DataFrame()
-        #if country == 'CZ':
-        #    forecast_df = pd.read_csv("cz_forecast.csv", sep = ';')
-        #if country == 'SK':
-        #    forecast_df = pd.read_csv("sk_forecast.csv", sep = ';')
-        #if country == 'HU':
-        #    forecast_df = pd.read_csv("hu_forecast.csv", sep = ';')
-        #forecast_df = forecast_df.set_index('time')
-        #forecast_df.index = pd.to_datetime(forecast_df.index, utc=True)
+    entsoe_df = pd.DataFrame()
+    forecast_df = pd.DataFrame()
 
     calendar_df = getCalendarData(country, fromDate, toDate)
     calendar_df.set_index('date', inplace=True, drop=True)
@@ -39,6 +30,7 @@ def getDataBeforeMerge(location, fromDate, toDate):
     weather_df.index = pd.to_datetime(weather_df.index.values, utc=True)
     weather_df.index.rename('timestamp',inplace=True)
     weather_df = weather_df.fillna(0)
+    
     return calendar_df, entsoe_df, weather_df
 
 
@@ -48,44 +40,34 @@ def getData(data_load, location, fromDate, toDate):
         for country in location: 
             entsoe_df = pd.DataFrame()
             forecast_df = pd.DataFrame()
-        calendar_df, entsoe_df, weather_df = getDataBeforeMerge(location, fromDate, toDate)
-    ##forecast_df = pd.merge(weather_df['01_temp'], forecast_df, how='left', left_index=True, right_index=True)
-    ##print(forecast_df)
-    # Create a new column 'merged_temperature' and initialize it with NaN values
-    ##forecast_df['merged_temperature'] = pd.Series(dtype=float)
+            calendar_df, entsoe_df, weather_df = getDataBeforeMerge(country, fromDate, toDate)
+            
+            forecast_df['fct_temp'] = weather_df['01_temp']
 
-    # Set the temperature values based on the timestamp condition
-    ##forecast_df.loc[forecast_df.index >= '2023-03-15 00:00', 'fct_temp'] = forecast_df['temperature']
-    ##forecast_df.loc[forecast_df.index < '2023-03-15 00:00', 'fct_temp'] = forecast_df['01_temp']
-
-    # Drop the redundant temperature columns
-    ##forecast_df = forecast_df.drop(['01_temp', 'temperature'], axis=1)
-
-# Print the resulting merged DataFrame
-    ##print(forecast_df)
-
-        merged = entsoe_df.copy()
-        merged = pd.merge(merged,calendar_df.loc[:, ["weekday", "month", "holiday", "holiday_lag", "holiday_lead", "weekday_binary"]],how='left',left_index=True, right_index=True).ffill(limit=23)
-        merged = pd.merge(merged,weather_df,how='left',left_index=True, right_index=True).ffill(limit=23)
+            merged = entsoe_df.copy()
+            merged = pd.merge(merged,calendar_df.loc[:, ["weekday", "month", "holiday", "holiday_lag", "holiday_lead", "weekday_binary"]],how='left',left_index=True, right_index=True).ffill(limit=23)
+            merged = pd.merge(merged,weather_df,how='left',left_index=True, right_index=True).ffill(limit=23)
+            merged = pd.merge(merged,forecast_df,how='left',left_index=True, right_index=True).ffill(limit=23)
     ##merged = pd.merge(merged, forecast_df, how='left', left_index=True, right_index=True)
-        merged = merged.drop_duplicates()
+            merged = merged.drop_duplicates()
 
 
         #merged['date'] = merged.index.date
-        merged['hour'] = merged.index.hour
+            merged['hour'] = merged.index.hour
     #X['dayofweek'] = X['timestamp'].dt.dayofweek
     #X['quarter'] = X['timestamp'].dt.quarter
-        merged['month'] = merged.index.month
-        merged['day'] = merged.index.day
-        merged = merged.reset_index()
-        merged.index.name = "time_idx"
-        X = pd.concat([merged, X])
+            merged['month'] = merged.index.month
+            merged['day'] = merged.index.day
+            merged = merged.reset_index()
+            merged.index.name = "time_idx"
+            X = pd.concat([merged, X])
+
         X['hour_sin'] = np.sin(2 * np.pi * X['hour']/24.0)
         X['hour_cos'] = np.cos(2 * np.pi * X['hour']/24.0)
         X['month_sin'] = np.sin(2 * np.pi * X['month']/12)
         X['month_cos'] = np.cos(2 * np.pi * X['month']/12)
-        X['Actual Load'] = X['Actual Load'].replace(0, np.nan)
-        X['Actual Load'] = X['Actual Load'].interpolate()
+        X = X.reset_index()
+    
     else: 
         X = pd.read_csv('/Users/yanapodlesna/main/skool/master/X_countries.csv')
         X['timestamp']= pd.to_datetime(X['timestamp'])
@@ -116,13 +98,16 @@ def createLagsY(df, load_lag):
     return df_lags, y
 
 def split_in_time(df,date):
-    """
-    Creates train/test datasets by given date
-    """
+   # Creates train/test datasets by given date
 
-    # split 
-    train = df.loc[df.index <= date].copy()
-    test = df.loc[df.index> date].copy()
+    if isinstance(df.index, pd.Int64Index):
+        # If index is integer, use the 'timestamp' column to split
+        train = df.loc[df['timestamp'] <= date].copy()
+        test = df.loc[df['timestamp'] > date].copy()
+    else:
+        # If index is not integer, use index to split
+        train = df.loc[df.index <= date].copy()
+        test = df.loc[df.index > date].copy()
 
     return train, test
 

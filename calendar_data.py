@@ -1,12 +1,15 @@
 import pandas as pd
 import holidays
 
+# Convert weekday to binary (1 for workday, 0 for weekend)
 def convert_weekday(day):
     if day >= 1 and day <= 5:
         return 1  # Workday
     else:
         return 0  # Weekend
 
+
+# Get calendar data (month, holiday, weekday) for specific country in date range fromDate toDate
 
 def getCalendarData(location, fromDate, toDate):
     start = pd.to_datetime(str(fromDate), format='%Y%m%d')

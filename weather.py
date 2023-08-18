@@ -1,6 +1,8 @@
-## Import Meteostat library and dependencies
+# Import Meteostat library and dependencies
 from meteostat import Point, Daily, Hourly
 import pandas as pd
+
+# Get weather data for specific country for 10 data pounts in date range fromDate toDate
 
 def getWeatherData(country, fromDate, toDate, type):
     # Set time period
@@ -97,3 +99,4 @@ def getWeatherData(country, fromDate, toDate, type):
     df = df_merged.interpolate()
     
     return df
+

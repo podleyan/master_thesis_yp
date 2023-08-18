@@ -1,6 +1,9 @@
 from entsoe import EntsoePandasClient
 import pandas as pd
+import numpy as np
 
+# Get electricity load data for specific country in date range fromDate toDate
+# API key retrieved from https://www.entsoe.eu/
 
 def getEntsoeData(location, fromDate, toDate, type):
     start = pd.Timestamp(str(fromDate), tz ='UTC')
@@ -21,10 +24,11 @@ def getEntsoeData(location, fromDate, toDate, type):
         
     load = load.resample('H').sum()
     load['country'] = location
-
+    load['Actual Load'] = load['Actual Load'].replace(0, np.nan)
+    load['Actual Load'] = load['Actual Load'].interpolate()
     return load
 
 # EXAMPLE:
-# data = getEntsoeData('CZ', 20171201, 20181201, 'history')
-# print(data)
+#data = getEntsoeData('CZ', 20171201, 20181201, 'history')
+#print(data)
 

@@ -66,13 +66,13 @@ train = 0                                           # if want to train model or 
 
 fromDate = 20210101                                 # start date for data load
 toDate = 20230701                                   # end date for data load
-location = {'CZ'}                                   # countries for data load (only CZ, HU or SK)
+location = {'CZ', 'HU'}                             # countries for data load (only CZ, HU or SK)
 load_lag = [24, 48, 168]                            # lags we want to create
 
 X = getData(data_load, location, fromDate, toDate)  # get data 
-X = X.reset_index()
-X = createLags(X, load_lag)                         # create lags
 
+X = createLags(X, load_lag)                         # create lags
+print(X)
 #######################################################################################################################
 # Create train/test datasets
 
@@ -102,7 +102,7 @@ training = TimeSeriesDataSet(
     time_varying_known_categoricals=[],
     time_varying_known_reals=["timestamp","hour_sin", "hour_cos", "month_sin", "month_cos", "weekday_binary","holiday","holiday_lag", "holiday_lead",
                               "load_lag_24", "load_lag_48", "load_lag_168", 
-                              #"fct_temp", 
+                              "fct_temp", 
                               'weekday'],
     time_varying_unknown_categoricals=[],
     time_varying_unknown_reals=[
