@@ -44,5 +44,3 @@ def getWeatherForecastData(load_from_csv, fromDate, toDate):
             print("Failed to retrieve data. Status code:", response.status_code)
             return None
     
-data = getWeatherForecastData(1, '2023-06-01', '2023-06-02')
-print(data)

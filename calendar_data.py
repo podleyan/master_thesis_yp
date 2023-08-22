@@ -24,6 +24,7 @@ def getCalendarData(location, fromDate, toDate):
     if 'CZ' in location:
         cz_holidays = holidays.Czechia()
         df['date'] = data
+        df['day'] = df['date'].dt.day
         df['weekday'] = df['date'].dt.dayofweek
         df['month'] = df['date'].dt.month
         df['country'] = 'CZ'
@@ -37,6 +38,7 @@ def getCalendarData(location, fromDate, toDate):
     if 'SK' in location:
         sk_holidays = holidays.Slovakia()
         df['date'] = data
+        df['day'] = df['date'].dt.day
         df['weekday'] = df['date'].dt.dayofweek
         df['month'] = df['date'].dt.month
         df['country'] = 'SK'
@@ -50,6 +52,7 @@ def getCalendarData(location, fromDate, toDate):
     if 'HU' in location:
         hu_holidays = holidays.Hungary()
         df['date'] = data
+        df['day'] = df['date'].dt.day
         df['weekday'] = df['date'].dt.dayofweek
         df['month'] = df['date'].dt.month
         df['country'] = 'HU'
@@ -66,6 +69,7 @@ def getCalendarData(location, fromDate, toDate):
         for prov in provinces:
             prov_holiday = holidays.Germany(prov=prov)
             df['date'] = data
+            df['day'] = df['date'].dt.day
             df['weekday'] = df['date'].dt.dayofweek
             df['month'] = df['date'].dt.month
             df['country'] = 'DE'
@@ -77,6 +81,7 @@ def getCalendarData(location, fromDate, toDate):
         for prov in range(1, 9):
             prov_holiday = holidays.Austria(prov=prov)
             df['date'] = data
+            df['day'] = df['date'].dt.day
             df['weekday'] = df['date'].dt.dayofweek
             df['month'] = df['date'].dt.month
             df['country'] = 'AT'

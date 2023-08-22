@@ -1,6 +1,6 @@
 
 import pandas as pd
-from data import getData, createLags, split_in_time, printMetrics, getDataBeforeMerge, createLagsY, createFeatures
+from data import getData, createLags, split_in_time, printMetrics, getDataBeforeMerge
 import numpy as np # linear algebra
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -15,27 +15,37 @@ from sklearn.model_selection import TimeSeriesSplit, GridSearchCV, RandomizedSea
 import warnings
 warnings.filterwarnings('ignore')
 from tqdm import tqdm
+
+# Predicting 36 hour ahead electricity load in Czech Republic with Random Forest in reccurent way
+
 #######################################################################################################################
 # Program Functionality parameters
 
 data_load = 1 
 hyperparameters_search = 0 
+prediction_length = 36
 
 #######################################################################################################################
 # Data load 
+# In the thesis dataset was used generated from date = 2022-01-01 to date = '2023-07-01' with '2023-03-15 as splitting date' 
 
-fromDate = 20210101                                 # start date for data load
-toDate = 20230701                                   # end date for data load
+
+fromDate = 20230101                                 # start date for data load
+toDate = 20230320                                   # end date for data load
 location = {'CZ'}                                   # countries for data load (only 1 from CZ, HU, SK)
 load_lag = [1, 24, 48, 168]                         # lags we want to create
 
-calendar_df, entsoe_df, weather_df = getDataBeforeMerge(location, fromDate, toDate)  # get data 
-print(entsoe_df)
 
-data_lags, y = createLagsY(pd.DataFrame(entsoe_df['Actual Load']), load_lag=load_lag)
+X_without_lags = getData(data_load, location, fromDate, toDate)  # get data 
+X_without_lags = X_without_lags.drop(columns={'time_idx', 'country', 'month_sin', 'month_cos', 'hour_cos', 'hour_sin'})
+X_without_lags = X_without_lags.set_index('timestamp')
 
-X = createFeatures(data_lags, df2 = weather_df, df3 = calendar_df.loc[:, ["weekday", "month", "holiday"]])
-#X = create_features(data_lags, df2 = weather_df.iloc[:,[0]], df3 = calendar_df.iloc[:,[0,1,2]], country=country)
+X = createLags(X_without_lags, load_lag=load_lag, get_country = False)
+
+y = X['Actual Load']
+X = X.drop(columns={'Actual Load'})
+
+print(y)
 
 #######################################################################################################################
 # Train test split
@@ -47,11 +57,11 @@ y_train, y_test = split_in_time(y,split_date)
 
 
 data_test = pd.DataFrame()
-entsoe_train, data_test = split_in_time(entsoe_df['Actual Load'], split_date)
+entsoe_train, data_test = split_in_time(y, split_date)
 
 #######################################################################################################################
 # Transform data
-cat_attribs = ['hour','dayofweek','month_x','weekofyear']
+cat_attribs = ['day', 'weekday', 'hour', 'month']
 
 full_pipeline = ColumnTransformer([('cat', OneHotEncoder(handle_unknown='ignore', sparse=False), cat_attribs)], remainder='passthrough')
 encoder = full_pipeline.fit(X_train)
@@ -65,6 +75,9 @@ y_test = np.nan_to_num(y_test)
 
 #######################################################################################################################
 # Hyperparameter optimization and model training
+
+# In thesis this set of hyperparameters was used: 
+# rf = RandomForestRegressor(random_state=42,n_jobs=4,criterion ="squared_error",max_depth=20,max_features='auto',n_estimators=500,warm_start=True)
 
 if hyperparameters_search: 
     tscv = TimeSeriesSplit(n_splits = 3)
@@ -94,38 +107,40 @@ else:
     rf = RandomForestRegressor(random_state=42,n_jobs=4,criterion ="squared_error",max_depth=20,max_features='auto',n_estimators=500,warm_start=True)
     rf.fit(X_train, y_train)
 
+
 #######################################################################################################################
 # Predicting 36 hours ahead 
-
 
 start_time = split_date
 end_time = X.index.max()
 df_RF =pd.DataFrame(columns={"time", "prediction", "forecasted_time"})
-
+#X_without_lags = X_without_lags.drop(columns = {'Actual Load'})
 count = 0
 
-for row in range(len(X[(X.index >= start_time) & (X.index < end_time)])):
-# for row in tqdm(range(7,10)):
-    X = createFeatures(entsoe_df, df2 = weather_df, df3 = calendar_df.loc[:,["month", "holiday", "weekday"]])
+end_row = len((X[X.index >= start_time]))-prediction_length
 
-    print('Row number ', row, ' out of ', len(X[X.index >= start_time]))
+for row in range(len(X[(X.index >= start_time) & (X.index < end_time)])-prediction_length+1):
+# for row in tqdm(range(7,10)):
+    X_temp = X_without_lags.copy()
+
+    print('Row number ', row, ' out of ', end_row-1)
     
-    fromPredict = X[X.index >= start_time].iloc[row]
+    fromPredict = X_temp[X_temp.index >= start_time].iloc[row]
     fromPredictionTime = fromPredict.name
     
     hour = fromPredictionTime.hour
     
-    for i in range(1, 37): 
+    for i in range(1, prediction_length+1): 
         count=count+1
-        
+
         # create new lags
-        data, y = createLagsY(X, load_lag=load_lag)
-        df = X.copy()
-        df.drop(columns=['Actual Load'],inplace=True)
-        df = df.merge(data,how='left',left_index=True,right_index=True)
+        df = createLags(X_temp, load_lag=load_lag, get_country= False)
+        df = df.drop(columns = {'Actual Load'})
 
         # prediction data
+    
         rowToPredict = df[df.index >= start_time].iloc[row + i]
+
         timeOfPrediction = rowToPredict.name
 
         rowHelp = df[df.index >= start_time].copy()
@@ -136,19 +151,20 @@ for row in range(len(X[(X.index >= start_time) & (X.index < end_time)])):
         
         # make prediction
         prediction = rf.predict(rowToPredictEncode)
-        
+
         # update X df and store prediction
-        X.loc[X[X.index >= start_time].index[row + i],'Actual Load'] = prediction
-        
+        X_temp.loc[X_temp[X_temp.index >= start_time].index[row + i],'Actual Load'] = prediction
+
         df_RF.loc[count - 1, 'time'] = fromPredictionTime
         df_RF.loc[count - 1, 'prediction'] = prediction[0]
         df_RF.loc[count - 1, 'forecasted_time'] = timeOfPrediction
         #print('Prediction from ', fromPredictionTime, ' load predicted ', prediction[0][0], ' time of load', timeOfPrediction)
+print('Prediction is done') 
 
-print('done') 
 
-df_RF.to_csv('RF.csv')
-rf_results = pd.merge(df_RF, X["Actual Load"], how='left', left_on='forecasted_time', right_on = 'timestamp')
+df_RF.to_csv('RF.csv')                       # Save results to csv
+df_RF['forecasted_time'] = pd.to_datetime(df_RF['forecasted_time'], utc=True)
+rf_results = pd.merge(df_RF, y, how='left', left_on='forecasted_time', right_on='timestamp')
 #######################################################################################################################
 # Results 
 

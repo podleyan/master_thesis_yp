@@ -1,78 +1,42 @@
 import pandas as pd
-from calendar_data import getCalendarData
-from weather import getWeatherData
-from entsoe_data import getEntsoeData
 from data import getData, createLags, split_in_time, printMetrics
 from tft_functions import tft_predict, printMetricsHourly
-
-import numpy as np # linear algebra
-import seaborn as sns
 import matplotlib.pyplot as plt
-import xgboost as xgb
-from xgboost import plot_importance, plot_tree
-
 plt.style.use('fivethirtyeight')
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder
-import plotly.graph_objects as go
-
-from sklearn.model_selection import train_test_split
-from sklearn.tree import export_graphviz
-from sklearn.ensemble import RandomForestRegressor
-import matplotlib.pyplot as plt
-from sklearn import tree
-from sklearn.metrics import mean_absolute_percentage_error, mean_squared_error, r2_score, mean_absolute_error
-
-
-from datetime import datetime, timedelta
-
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split, GridSearchCV
-import copy
-from pathlib import Path
 import warnings
-
-
 import lightning.pytorch as pl # Instead of import pytorch_lightning as pl
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.callbacks import LearningRateMonitor
-from lightning.pytorch.loggers import TensorBoardLogger
-#import pytorch_lightning as pl
-#from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor
-#from pytorch_lightning.loggers import TensorBoardLogger
-import torch
-
-from pytorch_forecasting import Baseline, TemporalFusionTransformer, TimeSeriesDataSet
-from pytorch_forecasting.data import GroupNormalizer
-from pytorch_forecasting.metrics import MAE, SMAPE, MAPE, PoissonLoss, QuantileLoss
+from pytorch_forecasting import TemporalFusionTransformer, TimeSeriesDataSet
+from pytorch_forecasting.metrics import QuantileLoss
 from pytorch_forecasting.models.temporal_fusion_transformer.tuning import optimize_hyperparameters
 import pickle
 
-from pytorch_forecasting.models.temporal_fusion_transformer.tuning import optimize_hyperparameters
-from torchmetrics import MeanAbsoluteError
-
-import warnings
-warnings.filterwarnings("ignore")
-from tqdm.autonotebook import tqdm
+# Predicting electricity load in Czech Republic with Temporal Fusion Transformer (TFT) 
 
 #######################################################################################################################
 # Program Functionality parameters
 
 data_load = 1                                       # if want to load data or get it from csv         
 search_hyperparameters = 0                          # if want to search for optimal tft hyperparameters
-train = 0                                           # if want to train model or load from checkpoint
+train = 1                                           # if want to train model or load from checkpoint
 #######################################################################################################################
+
 # Create dataset
 
-fromDate = 20210101                                 # start date for data load
-toDate = 20230701                                   # end date for data load
-location = {'CZ', 'HU'}                             # countries for data load (only CZ, HU or SK)
+# In the thesis dataset was used generated from date = 2022-01-01 to date = '2023-07-01' with '2023-03-15 as splitting date' 
+# This spliting date was used mostly because of avaliability of historical weather forecast 
+# For TFT model data for Czech Republic (CZ), Hungury (HU) and Slovakia (SK) was used 
+
+
+fromDate = 20230201                                 # start date for data load
+toDate = 20230401                                   # end date for data load
+location = {'CZ', 'SK'}                                   # countries for data load (only CZ, HU or SK)
 load_lag = [24, 48, 168]                            # lags we want to create
 
 X = getData(data_load, location, fromDate, toDate)  # get data 
-
 X = createLags(X, load_lag)                         # create lags
-print(X)
+
 #######################################################################################################################
 # Create train/test datasets
 
@@ -89,6 +53,11 @@ X_train, X_test = split_in_time(X,split_date)
 max_prediction_length = 6                           # prediction length
 max_encoder_length = 25                             # encoder length 
 training_cutoff = X_train.index.max() - max_prediction_length
+
+# For 6 hour model was used features: 01-10_temp, 01 - 10_dwpt, 08_tsun, hour_sin, hour_cos, weekday_binary, holiday, holiday_lag, 
+# holiday_lead, load_lag_24, load_lad_48, load_lag_48, load_lag_168, fct_temp
+
+# For 36 hour model was used the same features except load_lag_24
 
 training = TimeSeriesDataSet(
     X_train[lambda x: x.index <= training_cutoff],

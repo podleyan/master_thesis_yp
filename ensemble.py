@@ -6,6 +6,12 @@ from sklearn.ensemble import RandomForestRegressor
 from data import createCalendarFeatures, split_in_time, printMetrics
 from sklearn.model_selection import TimeSeriesSplit, GridSearchCV, RandomizedSearchCV
 
+# Predictions of ensemble model trained on predicted values of 
+# Random Forest, XGBoost and TFT models and calendar data and electricity load for specific hour
+# Trained data containes prediction for dates '2022-08-26' to '2023-03-15' and tested on data from '2023-03-15' to '2023-07-01'
+
+
+
 #######################################################################################################################
 # Program Functionality parameters
 hour = 2                                                # hour to predict

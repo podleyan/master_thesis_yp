@@ -1,10 +1,7 @@
 import pandas as pd
-from data import getData, split_in_time, getDataBeforeMerge, printMetrics
-from rf_xgb_direct_functions import model_data
 
-import numpy as np # linear algebra
-import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
-import seaborn as sns
+from data import getData, split_in_time, getDataBeforeMerge, printMetrics
+import numpy as np 
 import matplotlib.pyplot as plt
 import xgboost as xgb
 from xgboost import plot_importance, plot_tree
@@ -13,12 +10,59 @@ plt.style.use('fivethirtyeight')
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder
 import plotly.graph_objects as go
-
-from sklearn.tree import export_graphviz
 from sklearn.ensemble import RandomForestRegressor
 import matplotlib.pyplot as plt
 
 from sklearn.model_selection import TimeSeriesSplit, GridSearchCV, RandomizedSearchCV
+
+# Predict selected hour ahead with direct method with XGBoost and Random Forest (used for 6 hour ahead prediction)
+
+
+# Create shifted features such as temperature forecast, weather and electricity load for specific hour
+ 
+def model_data(entsoe_df, weather_df, calendar_df, shift):
+    X = pd.DataFrame()
+    forecast_df = pd.DataFrame()
+    forecast_df['forecast_weather'] = weather_df['01_temp']
+    for i in range(1,shift):
+        forecast_df[f'forecast_weather_lag_{i+1}'] = forecast_df['forecast_weather'].shift(-i+1)
+    
+    weather_df = weather_df.shift(-shift)
+    weather_df.columns = weather_df.columns + f'_lag_{shift}'
+
+
+    entsoe_df[f'load_lag_{shift}'] = entsoe_df['Actual Load'].shift(-shift)
+    entsoe_df['load_lag_24'] = entsoe_df['Actual Load'].shift(-24)
+    entsoe_df['load_lag_48'] = entsoe_df["Actual Load"].shift(-48)
+    entsoe_df['load_lag_168'] = entsoe_df["Actual Load"].shift(-168)
+    y = pd.DataFrame()
+    entsoe_df = entsoe_df.dropna()
+    y['Actual Load'] = entsoe_df['Actual Load']
+    entsoe_df = entsoe_df.drop(columns=['Actual Load'])
+    merged = entsoe_df.copy()
+
+    #print(entsoe_df)
+    merged = pd.merge(merged,calendar_df.loc[:, ["weekday", "month", "holiday", "holiday_lag", "holiday_lead", "weekday_binary"]],how='left',left_index=True, right_index=True).ffill(limit=23)
+    
+    merged = pd.merge(merged,weather_df,how='left',left_index=True, right_index=True).ffill(limit=23)
+    merged = pd.merge(merged,forecast_df,how='left',left_index=True, right_index=True).ffill(limit=23)
+
+    ##merged = pd.merge(merged, forecast_df, how='left', left_index=True, right_index=True)
+    merged = merged.drop_duplicates()
+
+
+    merged['hour'] = merged.index.hour
+    #X['dayofweek'] = X['timestamp'].dt.dayofweek
+    #X['quarter'] = X['timestamp'].dt.quarter
+    merged['month'] = merged.index.month
+    merged['day'] = merged.index.day
+    merged = merged.reset_index()
+    merged.index.name = "time_idx"
+    merged = merged.drop(columns=['country'])
+    #X['weekofyear'] = X['timestamp'].dt.weekofyear
+    X = pd.concat([merged, X])
+    return X, y
+
 
 #######################################################################################################################
 # Program Functionality parameters
@@ -104,7 +148,7 @@ else:
     rf.fit(X_train, y_train)
 
 #######################################################################################################################
-# Results
+# RF prediction and results
 
 data_test['RF_prediction']  = rf.predict(X_test)
 predicted_data = pd.DataFrame()
@@ -148,7 +192,10 @@ else:
         eval_set=[(X_train, y_train), (X_test, y_test)],
         early_stopping_rounds=50,
        verbose=False)
+    
+
 #######################################################################################################################
+# Prediction with XGboost
 y_pred = reg.predict(X_test)
 
 # Add the predicted values to the DataFrame as a new column
@@ -157,10 +204,12 @@ predicted_data['prediction'] = data_test['XGB_prediction']
 printMetrics(predicted_data)
 
 #######################################################################################################################
+# Save data to csv 
 
 data_test.to_csv(f'{shift}_model.csv')
 
 #######################################################################################################################
+# Create figure with prediction made with models
 
 figure_date = '2023-01-15 00:00:00+00:00'
 
