@@ -1,10 +1,6 @@
 
 import pandas as pd
-from calendar_data import getCalendarData
-from weather import getWeatherData
-from entsoe_data import getEntsoeData
 from data import getData, createLags, split_in_time, printMetrics, getDataBeforeMerge, createLagsY, createFeatures
-
 import numpy as np # linear algebra
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -13,13 +9,8 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder
 import plotly.graph_objects as go
 
-from sklearn.model_selection import train_test_split
-from sklearn.tree import export_graphviz
 from sklearn.ensemble import RandomForestRegressor
 import matplotlib.pyplot as plt
-from sklearn import tree
-from datetime import datetime
-from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import TimeSeriesSplit, GridSearchCV, RandomizedSearchCV
 import warnings
 warnings.filterwarnings('ignore')
