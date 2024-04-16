@@ -9,7 +9,7 @@ def getEntsoeData(location, fromDate, toDate, type):
     start = pd.Timestamp(str(fromDate), tz ='UTC')
     end = pd.Timestamp(str(toDate), tz ='UTC')
   
-    client = EntsoePandasClient(api_key='8204ab15-ed36-42be-98ac-089812f6f107')
+    client = EntsoePandasClient(api_key='')
     data = pd.date_range(start=start, end=end, freq='H', tz='UTC')
     entsoe_all = pd.DataFrame(index=data)
     country_code = str(location)
